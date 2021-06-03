@@ -192,9 +192,9 @@ Render(
             {
                 for (size_t tile_cell_col = 0; tile_cell_col < TILE_DIMENSION; tile_cell_col += 1)
                 {
-                    size_t frame_cell_row = ((TILE_DIMENSION + 1) * tile_row) + 1;
-                    size_t frame_cell_col = ((TILE_DIMENSION + 1) * tile_col) + 1;
-                    set_frame_buffer(&renderState->clearFrame, frame_cell_row, frame_cell_col, DUMMY_CELL_CHAR);
+                    size_t frame_cell_row = ((TILE_DIMENSION + 1) * tile_row) + 1 + tile_cell_row;
+                    size_t frame_cell_col = ((TILE_DIMENSION + 1) * tile_col) + 1 + tile_cell_col;
+                    set_frame_buffer(&renderFrame, frame_cell_row, frame_cell_col, DUMMY_CELL_CHAR);
                 }
             }
         }
