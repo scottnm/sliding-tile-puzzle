@@ -8,6 +8,7 @@
 			"args": [
 				"/TC",
 				"/W4",
+				"/WX",
 				"/nologo",
 				"/permissive-",
 				"${workspaceFolder}\\src\\*.c",

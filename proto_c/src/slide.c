@@ -10,6 +10,8 @@
 //   width # of clear cells + a newline for each row
 // + 1 for the null terminator
 #define FRAME_BUFFER_SIZE (((FRAME_WIDTH + 1) * FRAME_HEIGHT) + 1)
+#define GRID_DIMENSION 3 // 3x3 grid of tiles
+#define TILE_DIMENSION 5 // each tile is 5x5 set of cells
 
 void
 set_frame_buffer(
@@ -29,10 +31,23 @@ typedef struct game_state_id_t
     uint8_t value;
 } game_state_id_t;
 
+typedef struct puzzle_segment_t
+{
+    bool isSet;
+    char imgData[TILE_DIMENSION][TILE_DIMENSION];
+} puzzle_segment_t;
+
+typedef struct puzzle_t
+{
+    puzzle_segment_t puzzleSegments[GRID_DIMENSION][GRID_DIMENSION];
+} puzzle_t;
+
 typedef struct game_state_t
 {
     game_state_id_t stateId;
     bool isRunning;
+    uint8_t selectedCell[2];
+    puzzle_t puzzle;
 } game_state_t;
 
 typedef struct render_state_t
@@ -102,11 +117,20 @@ InitializeRenderState(
 
 void
 InitializeGame(
+    const puzzle_t* puzzle,
     _Out_ game_state_t* gameState)
 {
-    // FIXME: how do I make this state offset thing less fragile
-    // Start the GameState off at State1 so that it's different from the initial render state
-    *gameState = (game_state_t) { .stateId = { .value = 1 }, .isRunning = true };
+    // TODO(scottnm): hardcoding a single puzzle for now
+    *gameState = (game_state_t) {
+        // FIXME: how do I make this state offset thing less fragile
+        // Start the GameState off at State1 so that it's different from the initial render state
+        .stateId = { .value = 1 },
+        .isRunning = true,
+        .selectedCell = {0, 0}, // always start the cursor in the top-left corner
+        .puzzle = {0}, // zero-init the puzzle segments. We'll fill in below.
+    };
+
+    memcpy(&gameState->puzzle, puzzle, sizeof(gameState->puzzle));
 }
 
 bool
@@ -180,8 +204,6 @@ Render(
     // FIXME: static_assert on the size
     memcpy(renderFrame, renderState->clearFrame, sizeof(renderState->clearFrame));
 
-    const int GRID_DIMENSION = 3; // 3x3 grid of tiles
-    const int TILE_DIMENSION = 5; // each tile is 5x5 set of cells
     const char DUMMY_CELL_CHAR = 'X';
 
     for (size_t tile_row = 0; tile_row < GRID_DIMENSION; tile_row += 1)
@@ -205,14 +227,161 @@ Render(
 }
 
 void
+ReadPuzzle(
+    str_t puzzleFilePath,
+    _Out_ puzzle_t* outPuzzle
+    )
+{
+    FILE* puzzleFile;
+    errno_t err = fopen_s(&puzzleFile, puzzleFilePath.bytes, "rb");
+    if (err != 0)
+    {
+        // FIXME: for now don't worry about proper error handling. Just force an exit here.
+        // This is just a prototype.
+        Log("Failed to open puzzle file, %s! err=0x%08X", puzzleFilePath.bytes, err);
+        exit(err);
+    }
+
+    err = fseek(puzzleFile, 0, SEEK_END);
+    assert(err == 0);
+
+    size_t puzzleFileByteCount = ftell(puzzleFile);
+    err = fseek(puzzleFile, 0, SEEK_SET);
+    assert(err == 0);
+
+    static char puzzleFileByteBuffer[
+        (GRID_DIMENSION * GRID_DIMENSION) * // MAX_PUZZLE_FILE_SEGMENTS *
+        (ARRAYSIZE("256,256\n") - 1 + sizeof(puzzle_segment_t)) // MAX_SIZE_OF_EACH_DATA_SEGMENT
+    ];
+
+    if (puzzleFileByteCount > sizeof(puzzleFileByteBuffer))
+    {
+        // FIXME: for now don't worry about proper error handling. Just force an exit here.
+        // This is just a prototype.
+        Log("Error parsing puzzle data! expected at most %zu bytes but found %zu bytes",
+            sizeof(puzzleFileByteBuffer), puzzleFileByteCount);
+        exit(1);
+    }
+
+    size_t bytesRead = fread(puzzleFileByteBuffer, 1, sizeof(puzzleFileByteBuffer), puzzleFile);
+    char_span_t puzzleFileBytes = {
+        .data = puzzleFileByteBuffer,
+        .count = bytesRead,
+    };
+
+    char_span_t nextPuzzleFileLine = { .data = puzzleFileByteBuffer, .count = 0 };
+    puzzle_t puzzleBuffer = {0};
+    while (true)
+    {
+        nextPuzzleFileLine = get_next_split(nextPuzzleFileLine, puzzleFileBytes, '\n');
+        if (nextPuzzleFileLine.data == NULL)
+        {
+            break;
+        }
+
+        char* splitPtr;
+        size_t row = strtoul(nextPuzzleFileLine.data, &splitPtr, 10);
+        if (*splitPtr != ',')
+        {
+            // FIXME: for now don't worry about proper error handling. Just force an exit here.
+            // This is just a prototype.
+            Log("Error parsing puzzle data! expected comma after row but found %c(%i)", *splitPtr, *splitPtr);
+            exit(1);
+        }
+
+        size_t col = strtoul(splitPtr + 1, &splitPtr, 10);
+        if (*splitPtr != '\n')
+        {
+            // FIXME: for now don't worry about proper error handling. Just force an exit here.
+            // This is just a prototype.
+            Log("Error parsing puzzle data! expected newline after col but found %c(%i)", *splitPtr, *splitPtr);
+            exit(1);
+        }
+
+        if (row >= GRID_DIMENSION)
+        {
+            // FIXME: for now don't worry about proper error handling. Just force an exit here.
+            // This is just a prototype.
+            Log("Error parsing puzzle data! row value (%zu) out of range [0,%u)", row, GRID_DIMENSION);
+            exit(1);
+        }
+
+        if (col >= GRID_DIMENSION)
+        {
+            // FIXME: for now don't worry about proper error handling. Just force an exit here.
+            // This is just a prototype.
+            Log("Error parsing puzzle data! col value (%zu) out of range [0,%u)", col, GRID_DIMENSION);
+            exit(1);
+        }
+
+        puzzle_segment_t* puzzleSegment = &puzzleBuffer.puzzleSegments[row][col];
+        if (puzzleSegment->isSet)
+        {
+            Log("Error parsing puzzle data! puzzle segment (%zu,%zu) assigned twice", row, col);
+            exit(1);
+        }
+
+        puzzleSegment->isSet = true;
+
+        for (size_t i = 0; i < ARRAYSIZE(puzzleSegment->imgData); ++i)
+        {
+            nextPuzzleFileLine = get_next_split(nextPuzzleFileLine, puzzleFileBytes, '\n');
+            if (nextPuzzleFileLine.data == NULL)
+            {
+                Log("Error parsing puzzle data! each puzzle segment needs at least %zu rows but failed to find row %zu",
+                    ARRAYSIZE(puzzleSegment->imgData), i);
+                exit(1);
+            }
+
+            if (sizeof(puzzleSegment->imgData[i]) != nextPuzzleFileLine.count)
+            {
+                Log("Error parsing puzzle data! expected %zu bytes in puzzle segment row but found %zu",
+                    sizeof(puzzleSegment->imgData[i]), nextPuzzleFileLine.count);
+                exit(1);
+            }
+
+            memcpy(puzzleSegment->imgData[i], nextPuzzleFileLine.data, sizeof(puzzleSegment->imgData[i]));
+        }
+    }
+
+    size_t totalSetSegmentCount = 0;
+    for (size_t row = 0; row < ARRAYSIZE(puzzleBuffer.puzzleSegments); row += 1)
+    {
+        for (size_t col = 0; col < ARRAYSIZE(puzzleBuffer.puzzleSegments[row]); col += 1)
+        {
+            if (puzzleBuffer.puzzleSegments[row][col].isSet)
+            {
+                totalSetSegmentCount += 1;
+            }
+        }
+    }
+
+    const size_t TOTAL_PUZZLE_SEGMENT_COUNT =
+        ARRAYSIZE(puzzleBuffer.puzzleSegments) * ARRAYSIZE(puzzleBuffer.puzzleSegments[0]);
+    const size_t EXPECTED_PUZZLE_SEGMENT_COUNT = TOTAL_PUZZLE_SEGMENT_COUNT - 1;
+    if (totalSetSegmentCount != EXPECTED_PUZZLE_SEGMENT_COUNT)
+    {
+        Log("Error parsing puzzle data! expected %zu complete puzzle segments but found %zu",
+            EXPECTED_PUZZLE_SEGMENT_COUNT, totalSetSegmentCount);
+        exit(1);
+    }
+
+    *outPuzzle = puzzleBuffer;
+}
+
+void
 main(
     void)
 {
+    str_t puzzleFilePath = cstr("src/puzzle.data");
+    puzzle_t puzzle;
+    ReadPuzzle(puzzleFilePath, &puzzle);
+
     render_state_t renderState = {0};
     InitializeRenderState(&renderState);
 
     game_state_t gameState = {0};
-    InitializeGame(&gameState);
+    InitializeGame(&puzzle, &gameState);
 
     while (GameRunning(&gameState))
     {

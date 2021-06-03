@@ -62,20 +62,18 @@ make_str(
         .count = min((span).count, cnt), \
     }
 
-DEF_SPAN_T(const char*, char_ptr_span_t);
 DEF_SPAN_T(char, char_span_t);
-DEF_SPAN_T(uint8_t, byte_span_t);
 
-byte_span_t
+char_span_t
 get_first_split(
-    byte_span_t buffer,
-    uint8_t split_char);
+    char_span_t buffer,
+    char split_char);
 
-byte_span_t
+char_span_t
 get_next_split(
-    const byte_span_t current_split,
-    const byte_span_t full_span,
-    uint8_t split_char);
+    const char_span_t current_split,
+    const char_span_t full_span,
+    char split_char);
 
 #define split_by(span_t, iter_var_name, buffer, split_char) \
     for ( \

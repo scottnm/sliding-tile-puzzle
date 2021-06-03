@@ -2,7 +2,7 @@ param(
     [switch]$Run
     )
 
-cl /TC .\src\*.c /I .\src\ /W4 /Z7 /nologo /Fo:.\obj\ /Fe:.\bin\slide.exe
+cl /TC .\src\*.c /I .\src\ /W4 /WX /Z7 /nologo /Fo:.\obj\ /Fe:.\bin\slide.exe
 
 if (!$?)
 {
