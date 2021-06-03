@@ -1,3 +1,7 @@
+#pragma once
+
+#define RAW_KEY_ESC 0x1B
+
 // Returns an key code
 typedef struct raw_key_t
 {

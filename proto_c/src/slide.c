@@ -55,6 +55,7 @@ PollInput()
     {
         case 'q':
         case 'Q':
+        case RAW_KEY_ESC:
             key = KEY_QUIT;
             break;
         default:
