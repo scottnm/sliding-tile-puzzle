@@ -1,6 +1,6 @@
 #include "pch.h"
 
-#define SLEEP_PERIOD_MS 30
+#define SLEEP_PERIOD_MS 33 // 30 FPS
 
 // 3X3 slide puzzle where each slide piece is 5x5 with a 1 cell buffer around each cell
 // width == (bufwidth + cell_width) * num_cells + bufwidth == (1+5)*3 + 1 == 19
@@ -66,7 +66,16 @@ typedef struct render_state_t
 typedef enum key_t
 {
     KEY_NONE = 0, // preemptively add an extra none-value to account for non-key/analogue inputs
-    KEY_QUIT = 1,
+    KEY_1 = 1,
+    KEY_2 = 2,
+    KEY_3 = 3,
+    KEY_4 = 4,
+    KEY_5 = 5,
+    KEY_6 = 6,
+    KEY_7 = 7,
+    KEY_8 = 8,
+    KEY_9 = 9,
+    KEY_QUIT = 10,
     KEY_MAX_KEYS,
     // All unknown keys are registered after the "MAX_KEYS" value
 } key_t;
@@ -153,6 +162,33 @@ PollInput()
     key_t key;
     switch (polled_key.keyCode)
     {
+        case '1':
+            key = KEY_1;
+            break;
+        case '2':
+            key = KEY_2;
+            break;
+        case '3':
+            key = KEY_3;
+            break;
+        case '4':
+            key = KEY_4;
+            break;
+        case '5':
+            key = KEY_5;
+            break;
+        case '6':
+            key = KEY_6;
+            break;
+        case '7':
+            key = KEY_7;
+            break;
+        case '8':
+            key = KEY_8;
+            break;
+        case '9':
+            key = KEY_9;
+            break;
         case 'q':
         case 'Q':
         case RAW_KEY_ESC:
@@ -160,11 +196,62 @@ PollInput()
             break;
         default:
             key = (key_t)(KEY_MAX_KEYS + polled_key.keyCode);
-            Log("Unknown key! 0x%08X (keyCode=0x%08X)", key, polled_key.keyCode);
+            // Uncomment to inspect keys:
+            // Log("Unknown key! 0x%08X (keyCode=0x%08X)", key, polled_key.keyCode);
             break;
     }
 
     return (input_t){ .has_input = true, .key = key };
+}
+
+puzzle_segment_t*
+FindEmptyNeighbor(
+    puzzle_t* puzzleState,
+    size_t selectedRow,
+    size_t selectedCol)
+{
+    // Cast our inputs as sized-types to work more naturally with this function
+    int row = (int)selectedRow;
+    int col = (int)selectedCol;
+
+    typedef struct neighbor_offset_t
+    {
+        int8_t row;
+        int8_t col;
+    } neighbor_offset_t;
+
+    static const neighbor_offset_t neighbors[] =
+    {
+        { -1,  0 }, // top
+        {  0, -1 }, // left
+        {  0,  1 }, // right
+        {  1,  0 }, // bottom
+    };
+
+    static const int PUZZLE_HEIGHT = ARRAYSIZE(puzzleState->puzzleSegments);
+    static const int PUZZLE_WIDTH = ARRAYSIZE(puzzleState->puzzleSegments[0]);
+
+    for (size_t i = 0; i < ARRAYSIZE(neighbors); i += 1)
+    {
+        neighbor_offset_t neighborOffset = neighbors[i];
+        int offsetRow = row + neighborOffset.row;
+        int offsetCol = col + neighborOffset.col;
+
+        // out of bounds neighbor check
+        if (offsetRow < 0 || offsetRow >= PUZZLE_HEIGHT ||
+            offsetCol < 0 || offsetCol >= PUZZLE_WIDTH)
+        {
+            continue;
+        }
+
+        puzzle_segment_t* neighborTile = &puzzleState->puzzleSegments[row][col];
+        if (!neighborTile->isSet)
+        {
+            return neighborTile;
+        }
+    }
+
+    return NULL;
 }
 
 void
@@ -182,6 +269,38 @@ UpdateGameState(
         Log("Quit key pressed! Quitting...");
         gameState->isRunning = false;
         return;
+    }
+
+    // Check if we've selected a tile to move
+    if (input.key >= KEY_1 && input.key <= KEY_9)
+    {
+        size_t keyIndex = input.key - KEY_1; // shift the key to a 0-based index
+        size_t selectedRow = keyIndex / GRID_DIMENSION;
+        size_t selectedCol = keyIndex % GRID_DIMENSION;
+        puzzle_segment_t* selectedTile = &gameState->puzzle.puzzleSegments[selectedRow][selectedCol];
+        if (!selectedTile->isSet)
+        {
+            // noop input. selected an already empty tile so there is no move
+            return;
+        }
+
+        // FIXME: rather than search for the empty neighbor I could always cache it/store it.
+        // Given the size of this problem and the fact that it's a prototype idk that I care right now.
+        puzzle_segment_t* emptyTile = FindEmptyNeighbor(&gameState->puzzle, selectedRow, selectedCol);
+        if (emptyTile == NULL)
+        {
+            // noop input. the selected tile was not a neighbor of the empty tile
+            return;
+        }
+
+        // Swap the empty tile with the selected tile
+        puzzle_segment_t tmpTile;
+        memcpy(&tmpTile, emptyTile, sizeof(tmpTile));
+        memcpy(emptyTile, selectedTile, sizeof(*emptyTile));
+        memcpy(selectedTile, &tmpTile, sizeof(*selectedTile));
+
+        // The state has updated, bump the state id so that it's rendered in the next frame.
+        gameState->stateId.value += 1;
     }
 }
 
@@ -395,9 +514,8 @@ main(
     while (GameRunning(&gameState))
     {
         input_t input = PollInput();
-        /* FIXME: TMP */ if (input.has_input) { Log("Input: key=0x%08X", input.key); }
         UpdateGameState(input, &gameState);
         Render(&gameState, &renderState);
-        Sleep(33); // 30 FPS
+        Sleep(SLEEP_PERIOD_MS);
     }
 }
