@@ -44,7 +44,7 @@ get_first_split(
     // Skip over any leading split chars
     while (buffer.count > 0 && buffer.data[0] == split_char)
     {
-        SPAN_ADV(buffer);
+        SPAN_ADV(buffer, 1);
     }
 
     // The first split of an empty span is another empty span
@@ -82,4 +82,3 @@ get_next_split(
         .count = full_span.count - current_split.count - current_split_offset };
     return get_first_split(remaining_span, split_char);
 }
-

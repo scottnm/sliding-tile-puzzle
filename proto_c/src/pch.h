@@ -10,6 +10,7 @@
 
 // WINDOWS
 #include <sal.h>
+#include <Windows.h>
 
 // MINE
 #include "util.h"

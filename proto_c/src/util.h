@@ -8,7 +8,9 @@
 
 //////////////////
 // BUFFER HELPERS
+#ifndef ARRAYSIZE
 #define ARRAYSIZE(x) (sizeof((x))/sizeof((x)[0]))
+#endif // !ARRAYSIZE
 
 //////////////////
 // STRING HELPERS
@@ -43,10 +45,15 @@ make_str(
         size_t count; \
     } typename
 
-#define SPAN_ADV(span) \
+#define SPAN_ADV(span, advCount) \
     do { \
-        (span).data += 1; \
-        (span).count -= 1; \
+        const size_t localAdvCount = (advCount); \
+        (span).data += localAdvCount; \
+        (span).count -= localAdvCount; \
+    } while (0) \
+
+#define SUBSPAN(span, advCount) \
+    do { \
     } while (0) \
 
 #define SPAN_FIRST(span, cnt) \
@@ -56,6 +63,7 @@ make_str(
     }
 
 DEF_SPAN_T(const char*, char_ptr_span_t);
+DEF_SPAN_T(char, char_span_t);
 DEF_SPAN_T(uint8_t, byte_span_t);
 
 byte_span_t
