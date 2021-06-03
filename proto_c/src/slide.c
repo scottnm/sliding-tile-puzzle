@@ -27,6 +27,7 @@
 #define FRAME_BUFFER_SIZE (((FRAME_WIDTH + 1) * FRAME_HEIGHT) + 1)
 #define GRID_DIMENSION 3 // 3x3 grid of tiles
 #define TILE_DIMENSION 5 // each tile is 5x5 set of cells
+#define MAX_NEIGHBORS 4 // only cardinal directions are considered
 
 #define CURSORUP_SEQ "\033[A"
 #define CURSORUP_SEQ_SIZE (sizeof(CURSORUP_SEQ)-1)
@@ -56,6 +57,24 @@ typedef struct puzzle_segment_t
     char imgData[TILE_DIMENSION][TILE_DIMENSION];
 } puzzle_segment_t;
 
+static
+void
+SwapPuzzleSegments(
+    _Inout_ puzzle_segment_t* a,
+    _Inout_ puzzle_segment_t* b
+    )
+{
+    // a and b cannot overlap
+    assert((a <= (b - 1)) ||
+           (a >= (b + 1)) );
+
+    puzzle_segment_t tmpTile;
+    memcpy(&tmpTile, a, sizeof(tmpTile));
+    memcpy(a, b, sizeof(*a));
+    memcpy(b, &tmpTile, sizeof(*b));
+
+}
+
 typedef struct puzzle_t
 {
     puzzle_segment_t puzzleSegments[GRID_DIMENSION][GRID_DIMENSION];
@@ -67,6 +86,7 @@ typedef struct game_state_t
     bool isRunning;
     uint8_t selectedCell[2];
     puzzle_t puzzle;
+    puzzle_t puzzleSolution;
 } game_state_t;
 
 // FIXME: I would love to get rid of these debug shenanigans
@@ -147,6 +167,102 @@ GetPuzzleSegmentPosition(
 }
 
 static
+puzzle_segment_t*
+FindEmptyTile(
+    puzzle_t* puzzle)
+{
+    for (size_t tile_row = 0; tile_row < GET_PUZZLE_HEIGHT(puzzle); tile_row += 1)
+    {
+        for (size_t tile_col = 0; tile_col < GET_PUZZLE_WIDTH(puzzle); tile_col += 1)
+        {
+            puzzle_segment_t* nextSegment = &puzzle->puzzleSegments[tile_row][tile_col];
+            if (!nextSegment->isSet)
+            {
+                return nextSegment;
+            }
+        }
+    }
+
+    assert(false && "Invalid Puzzle! Has no empty segments");
+    exit(1);
+}
+
+static
+void
+GetNeighbors(
+    puzzle_t* puzzleState,
+    puzzle_segment_t* homeTile,
+    _Out_ size_t* outNeighborCount,
+    _Out_writes_(*outNeighborCount) puzzle_segment_t** outNeighbors)
+{
+    // Cast our inputs as sized-types to work more naturally with this function
+    size_t homeRow;
+    size_t homeCol;
+    GetPuzzleSegmentPosition(puzzleState, homeTile, &homeRow, &homeCol);
+
+    int row = (int)homeRow;
+    int col = (int)homeCol;
+
+    typedef struct neighbor_offset_t
+    {
+        int8_t row;
+        int8_t col;
+    } neighbor_offset_t;
+
+    static const neighbor_offset_t neighbors[] =
+    {
+        { -1,  0 }, // top
+        {  0, -1 }, // left
+        {  0,  1 }, // right
+        {  1,  0 }, // bottom
+    };
+
+    static const int PUZZLE_HEIGHT = GET_PUZZLE_HEIGHT(puzzleState);
+    static const int PUZZLE_WIDTH = GET_PUZZLE_WIDTH(puzzleState);
+
+    size_t neighborCount = 0;
+    for (size_t i = 0; i < ARRAYSIZE(neighbors); i += 1)
+    {
+        neighbor_offset_t neighborOffset = neighbors[i];
+        int offsetRow = row + neighborOffset.row;
+        int offsetCol = col + neighborOffset.col;
+
+        // out of bounds neighbor check
+        if (offsetRow < 0 || offsetRow >= PUZZLE_HEIGHT ||
+            offsetCol < 0 || offsetCol >= PUZZLE_WIDTH)
+        {
+            continue;
+        }
+
+        outNeighbors[neighborCount] = &puzzleState->puzzleSegments[offsetRow][offsetCol];
+        neighborCount += 1;
+    }
+
+    *outNeighborCount = neighborCount;
+}
+
+static
+puzzle_segment_t*
+FindEmptyNeighbor(
+    puzzle_t* puzzleState,
+    size_t selectedRow,
+    size_t selectedCol)
+{
+    size_t neighborCount;
+    puzzle_segment_t* neighbors[MAX_NEIGHBORS];
+    GetNeighbors(puzzleState, &puzzleState->puzzleSegments[selectedRow][selectedCol], &neighborCount, neighbors);
+
+    for (size_t i = 0; i < neighborCount; i += 1)
+    {
+        if (!neighbors[i]->isSet)
+        {
+            return neighbors[i];
+        }
+    }
+    return NULL;
+}
+
+static
 void
 InitializeRenderState(
     _Out_ render_state_t* renderState
@@ -212,7 +328,31 @@ InitializeGame(
         .puzzle = {0}, // zero-init the puzzle segments. We'll fill in below.
     };
 
+    // Copy the input puzzle in as both the solution and the initial puzzle state
     memcpy(&gameState->puzzle, puzzle, sizeof(gameState->puzzle));
+    memcpy(&gameState->puzzleSolution, puzzle, sizeof(gameState->puzzle));
+
+    // Mix up the initial puzzle state
+    puzzle_segment_t* emptyTile = FindEmptyTile(&gameState->puzzle);
+
+    // FIXME: I shouldn't use srand or rand
+    srand(0); // use a deterministic seed for now
+
+    // FIXME: increase once I test the win-state logic
+    static const size_t MIX_UP_STEPS = 1;
+    for (size_t i = 0; i < MIX_UP_STEPS; i += 1)
+    {
+        size_t neighborCount;
+        puzzle_segment_t* neighbors[MAX_NEIGHBORS];
+        GetNeighbors(&gameState->puzzle, emptyTile, &neighborCount, neighbors);
+
+        // select a random neighbor cell
+        puzzle_segment_t* swapTile = neighbors[rand() % neighborCount];
+        // swap
+        SwapPuzzleSegments(emptyTile, swapTile);
+
+        emptyTile = swapTile;
+    }
 }
 
 static
@@ -279,57 +419,6 @@ PollInput()
 }
 
 static
-puzzle_segment_t*
-FindEmptyNeighbor(
-    puzzle_t* puzzleState,
-    size_t selectedRow,
-    size_t selectedCol)
-{
-    // Cast our inputs as sized-types to work more naturally with this function
-    int row = (int)selectedRow;
-    int col = (int)selectedCol;
-
-    typedef struct neighbor_offset_t
-    {
-        int8_t row;
-        int8_t col;
-    } neighbor_offset_t;
-
-    static const neighbor_offset_t neighbors[] =
-    {
-        { -1,  0 }, // top
-        {  0, -1 }, // left
-        {  0,  1 }, // right
-        {  1,  0 }, // bottom
-    };
-
-    static const int PUZZLE_HEIGHT = GET_PUZZLE_HEIGHT(puzzleState);
-    static const int PUZZLE_WIDTH = GET_PUZZLE_WIDTH(puzzleState);
-
-    for (size_t i = 0; i < ARRAYSIZE(neighbors); i += 1)
-    {
-        neighbor_offset_t neighborOffset = neighbors[i];
-        int offsetRow = row + neighborOffset.row;
-        int offsetCol = col + neighborOffset.col;
-
-        // out of bounds neighbor check
-        if (offsetRow < 0 || offsetRow >= PUZZLE_HEIGHT ||
-            offsetCol < 0 || offsetCol >= PUZZLE_WIDTH)
-        {
-            continue;
-        }
-
-        puzzle_segment_t* neighborTile = &puzzleState->puzzleSegments[offsetRow][offsetCol];
-        if (!neighborTile->isSet)
-        {
-            return neighborTile;
-        }
-    }
-
-    return NULL;
-}
-
-static
 void
 UpdateGameState(
     input_t input,
@@ -376,10 +465,7 @@ UpdateGameState(
         GetPuzzleSegmentPosition(&gameState->puzzle, emptyTile, &emptyTileRow, &emptyTileCol);
         WRITE_DEBUG_LINE("Swapping (%zu,%zu) with (%zu,%zu)", selectedRow, selectedCol, emptyTileRow, emptyTileCol);
 
-        puzzle_segment_t tmpTile;
-        memcpy(&tmpTile, emptyTile, sizeof(tmpTile));
-        memcpy(emptyTile, selectedTile, sizeof(*emptyTile));
-        memcpy(selectedTile, &tmpTile, sizeof(*selectedTile));
+        SwapPuzzleSegments(emptyTile, selectedTile);
 
         // The state has updated, bump the state id so that it's rendered in the next frame.
         gameState->stateId.value += 1;
