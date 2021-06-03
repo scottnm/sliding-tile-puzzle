@@ -204,19 +204,28 @@ Render(
     // FIXME: static_assert on the size
     memcpy(renderFrame, renderState->clearFrame, sizeof(renderState->clearFrame));
 
-    const char DUMMY_CELL_CHAR = 'X';
-
     for (size_t tile_row = 0; tile_row < GRID_DIMENSION; tile_row += 1)
     {
         for (size_t tile_col = 0; tile_col < GRID_DIMENSION; tile_col += 1)
         {
+            // Skip any unset segments
+            const puzzle_segment_t* nextPuzzleSegment = &gameState->puzzle.puzzleSegments[tile_row][tile_col];
+            if (!nextPuzzleSegment->isSet)
+            {
+                continue;
+            }
+
             for (size_t tile_cell_row = 0; tile_cell_row < TILE_DIMENSION; tile_cell_row += 1)
             {
                 for (size_t tile_cell_col = 0; tile_cell_col < TILE_DIMENSION; tile_cell_col += 1)
                 {
                     size_t frame_cell_row = ((TILE_DIMENSION + 1) * tile_row) + 1 + tile_cell_row;
                     size_t frame_cell_col = ((TILE_DIMENSION + 1) * tile_col) + 1 + tile_cell_col;
-                    set_frame_buffer(&renderFrame, frame_cell_row, frame_cell_col, DUMMY_CELL_CHAR);
+                    set_frame_buffer(
+                        &renderFrame,
+                        frame_cell_row,
+                        frame_cell_col,
+                        nextPuzzleSegment->imgData[tile_cell_row][tile_cell_col]);
                 }
             }
         }
