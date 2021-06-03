@@ -13,6 +13,9 @@
 #define GRID_DIMENSION 3 // 3x3 grid of tiles
 #define TILE_DIMENSION 5 // each tile is 5x5 set of cells
 
+#define CURSORUP_SEQ "\033[A"
+#define CURSORUP_SEQ_SIZE (sizeof(CURSORUP_SEQ)-1)
+
 void
 set_frame_buffer(
     char (*frameBuffer)[FRAME_BUFFER_SIZE],
@@ -50,17 +53,31 @@ typedef struct game_state_t
     puzzle_t puzzle;
 } game_state_t;
 
+// FIXME: I would love to get rid of these debug shenanigans
+#define DEBUG_LINE_WIDTH 128
+// width of the debug line + newline + null-terminator
+#define DEBUG_LINE_SIZE (DEBUG_LINE_WIDTH + 1 + 1)
+typedef struct debug_render_state_t
+{
+    bool dirty;
+    char clearLine[DEBUG_LINE_SIZE + 1]; // +1 for the backup character
+    char backupLine[ARRAYSIZE(CURSORUP_SEQ) + 1 + 1]; // +1 for backup character, +1 for null-terminator
+    char debugLine[DEBUG_LINE_SIZE];
+} debug_render_state_t;
+
+// FIXME: yikes global shared state. bugs waiting to happen.
+static debug_render_state_t g_debugRenderState = {0};
+
 typedef struct render_state_t
 {
     game_state_id_t lastRenderedState;
+
     char clearFrame[FRAME_BUFFER_SIZE];
 
     //   1 cursor-up character for each line +
     // + 1 backup character once we've reached the top of the line
     // + 1 for the null terminator
-#define BACKUP_SEQ "\033[A"
-#define BACKUP_SEQ_SIZE (sizeof(BACKUP_SEQ)-1)
-    char backupFrame[(FRAME_HEIGHT * BACKUP_SEQ_SIZE) + 1 + 1];
+    char backupFrame[(FRAME_HEIGHT * CURSORUP_SEQ_SIZE) + 1 + 1];
 } render_state_t;
 
 typedef enum key_t
@@ -93,8 +110,16 @@ InitializeRenderState(
 {
     renderState->lastRenderedState = (game_state_id_t){0};
 
-    // Setup the clearframe
     static const char CLEAR_CHAR = ' ';
+
+    // Setup the debug clear line
+    memset(g_debugRenderState.clearLine, CLEAR_CHAR, DEBUG_LINE_WIDTH);
+    g_debugRenderState.clearLine[DEBUG_LINE_WIDTH] = '\n';
+    g_debugRenderState.clearLine[DEBUG_LINE_WIDTH + 1] = '\0';
+    // Setup the debug backup line
+    (void)strcpy_s(g_debugRenderState.backupLine, sizeof(g_debugRenderState.backupLine), CURSORUP_SEQ "\r");
+
+    // Setup the clearframe
     for (size_t row = 0; row < FRAME_HEIGHT; row += 1)
     {
         for (size_t col = 0; col < FRAME_WIDTH; col += 1)
@@ -112,8 +137,8 @@ InitializeRenderState(
 
     for (size_t row = 0; row < FRAME_HEIGHT; row += 1)
     {
-        memcpy(offsetBackupFrame.data, BACKUP_SEQ, BACKUP_SEQ_SIZE);
-        SPAN_ADV(offsetBackupFrame, BACKUP_SEQ_SIZE);
+        memcpy(offsetBackupFrame.data, CURSORUP_SEQ, CURSORUP_SEQ_SIZE);
+        SPAN_ADV(offsetBackupFrame, CURSORUP_SEQ_SIZE);
     }
 
     offsetBackupFrame.data[0] = '\r';
@@ -122,7 +147,18 @@ InitializeRenderState(
     offsetBackupFrame.data[0]= '\0';
     SPAN_ADV(offsetBackupFrame, 1);
     assert(offsetBackupFrame.count == 0);
+
+    // Write an empty frame to the console so that the Render loop doesn't have to special case the first write
+    printf("%s%s", g_debugRenderState.clearLine, renderState->clearFrame);
 }
+
+#define WRITE_DEBUG_LINE(FMT, ...) \
+    do { \
+        debug_render_state_t* rs = &g_debugRenderState; \
+        rs->dirty = true; \
+        (void)_snprintf_s( \
+            rs->debugLine, sizeof(rs->debugLine), sizeof(rs->debugLine), FMT, __VA_ARGS__); \
+    } while (0) \
 
 void
 InitializeGame(
@@ -196,8 +232,7 @@ PollInput()
             break;
         default:
             key = (key_t)(KEY_MAX_KEYS + polled_key.keyCode);
-            // Uncomment to inspect keys:
-            // Log("Unknown key! 0x%08X (keyCode=0x%08X)", key, polled_key.keyCode);
+            WRITE_DEBUG_LINE("Unknown key! 0x%08X (keyCode=0x%08X)", key, polled_key.keyCode);
             break;
     }
 
@@ -309,14 +344,23 @@ Render(
     const game_state_t* gameState,
     _Inout_ render_state_t* renderState)
 {
-    if (gameState->stateId.value == renderState->lastRenderedState.value)
+    if (gameState->stateId.value == renderState->lastRenderedState.value && !g_debugRenderState.dirty)
     {
         // if nothing has changed in the gamestate, don't bother rendering an update
         return;
     }
 
     // Clear last frame
-    printf("%s%s", renderState->clearFrame, renderState->backupFrame);
+    printf("%s%s%s%s%s%s",
+        renderState->backupFrame,
+        g_debugRenderState.backupLine,
+        g_debugRenderState.clearLine,
+        renderState->clearFrame,
+        renderState->backupFrame,
+        g_debugRenderState.backupLine);
+
+    // Render the debug line
+    printf("%s\n", g_debugRenderState.debugLine);
 
     // Render the next frame
     char renderFrame[FRAME_BUFFER_SIZE];
@@ -352,6 +396,7 @@ Render(
 
     printf("%s", renderFrame);
     renderState->lastRenderedState = gameState->stateId;
+    g_debugRenderState.dirty = false;
 }
 
 void
