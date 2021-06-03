@@ -382,7 +382,7 @@ void
 main(
     void)
 {
-    str_t puzzleFilePath = cstr("src/puzzle.data");
+    str_t puzzleFilePath = cstr("data/puzzle.data");
     puzzle_t puzzle;
     ReadPuzzle(puzzleFilePath, &puzzle);
 
