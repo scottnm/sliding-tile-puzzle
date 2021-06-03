@@ -16,6 +16,7 @@
 #define CURSORUP_SEQ "\033[A"
 #define CURSORUP_SEQ_SIZE (sizeof(CURSORUP_SEQ)-1)
 
+static
 void
 set_frame_buffer(
     char (*frameBuffer)[FRAME_BUFFER_SIZE],
@@ -68,6 +69,14 @@ typedef struct debug_render_state_t
 // FIXME: yikes global shared state. bugs waiting to happen.
 static debug_render_state_t g_debugRenderState = {0};
 
+#define WRITE_DEBUG_LINE(FMT, ...) \
+    do { \
+        debug_render_state_t* rs = &g_debugRenderState; \
+        rs->dirty = true; \
+        (void)_snprintf_s( \
+            rs->debugLine, sizeof(rs->debugLine), sizeof(rs->debugLine), FMT, __VA_ARGS__); \
+    } while (0) \
+
 typedef struct render_state_t
 {
     game_state_id_t lastRenderedState;
@@ -103,6 +112,26 @@ typedef struct input_t
     key_t key;
 } input_t;
 
+#define GET_PUZZLE_HEIGHT(puzzle) ( ARRAYSIZE((puzzle)->puzzleSegments) )
+#define GET_PUZZLE_WIDTH(puzzle) ( ARRAYSIZE((puzzle)->puzzleSegments[0]) )
+
+static
+void
+GetPuzzleSegmentPosition(
+    const puzzle_t* puzzle,
+    const puzzle_segment_t* puzzleSegment,
+    _Out_ size_t* row,
+    _Out_ size_t* col)
+{
+    assert(puzzleSegment >= &puzzle->puzzleSegments[0][0]);
+    assert(puzzleSegment <= &puzzle->puzzleSegments[GET_PUZZLE_HEIGHT(puzzle)-1][GET_PUZZLE_WIDTH(puzzle)-1]);
+
+    size_t index = puzzleSegment - &puzzle->puzzleSegments[0][0];
+    *row = index / GET_PUZZLE_WIDTH(puzzle);
+    *col = index % GET_PUZZLE_WIDTH(puzzle);
+}
+
+static
 void
 InitializeRenderState(
     _Out_ render_state_t* renderState
@@ -152,14 +181,7 @@ InitializeRenderState(
     printf("%s%s", g_debugRenderState.clearLine, renderState->clearFrame);
 }
 
-#define WRITE_DEBUG_LINE(FMT, ...) \
-    do { \
-        debug_render_state_t* rs = &g_debugRenderState; \
-        rs->dirty = true; \
-        (void)_snprintf_s( \
-            rs->debugLine, sizeof(rs->debugLine), sizeof(rs->debugLine), FMT, __VA_ARGS__); \
-    } while (0) \
-
+static
 void
 InitializeGame(
     const puzzle_t* puzzle,
@@ -178,6 +200,7 @@ InitializeGame(
     memcpy(&gameState->puzzle, puzzle, sizeof(gameState->puzzle));
 }
 
+static
 bool
 GameRunning(
     const game_state_t* gameState)
@@ -186,6 +209,7 @@ GameRunning(
     return gameState->isRunning;
 }
 
+static
 input_t
 PollInput()
 {
@@ -239,6 +263,7 @@ PollInput()
     return (input_t){ .has_input = true, .key = key };
 }
 
+static
 puzzle_segment_t*
 FindEmptyNeighbor(
     puzzle_t* puzzleState,
@@ -263,8 +288,8 @@ FindEmptyNeighbor(
         {  1,  0 }, // bottom
     };
 
-    static const int PUZZLE_HEIGHT = ARRAYSIZE(puzzleState->puzzleSegments);
-    static const int PUZZLE_WIDTH = ARRAYSIZE(puzzleState->puzzleSegments[0]);
+    static const int PUZZLE_HEIGHT = GET_PUZZLE_HEIGHT(puzzleState);
+    static const int PUZZLE_WIDTH = GET_PUZZLE_WIDTH(puzzleState);
 
     for (size_t i = 0; i < ARRAYSIZE(neighbors); i += 1)
     {
@@ -279,7 +304,7 @@ FindEmptyNeighbor(
             continue;
         }
 
-        puzzle_segment_t* neighborTile = &puzzleState->puzzleSegments[row][col];
+        puzzle_segment_t* neighborTile = &puzzleState->puzzleSegments[offsetRow][offsetCol];
         if (!neighborTile->isSet)
         {
             return neighborTile;
@@ -289,6 +314,7 @@ FindEmptyNeighbor(
     return NULL;
 }
 
+static
 void
 UpdateGameState(
     input_t input,
@@ -316,6 +342,7 @@ UpdateGameState(
         if (!selectedTile->isSet)
         {
             // noop input. selected an already empty tile so there is no move
+            WRITE_DEBUG_LINE("Selected tile at (%zu,%zu) is the empty tile", selectedRow, selectedCol);
             return;
         }
 
@@ -325,10 +352,15 @@ UpdateGameState(
         if (emptyTile == NULL)
         {
             // noop input. the selected tile was not a neighbor of the empty tile
+            WRITE_DEBUG_LINE("Tile at (%zu,%zu) not neighbor of empty tile", selectedRow, selectedCol);
             return;
         }
 
         // Swap the empty tile with the selected tile
+        size_t emptyTileRow, emptyTileCol;
+        GetPuzzleSegmentPosition(&gameState->puzzle, emptyTile, &emptyTileRow, &emptyTileCol);
+        WRITE_DEBUG_LINE("Swapping (%zu,%zu) with (%zu,%zu)", selectedRow, selectedCol, emptyTileRow, emptyTileCol);
+
         puzzle_segment_t tmpTile;
         memcpy(&tmpTile, emptyTile, sizeof(tmpTile));
         memcpy(emptyTile, selectedTile, sizeof(*emptyTile));
@@ -339,6 +371,7 @@ UpdateGameState(
     }
 }
 
+static
 void
 Render(
     const game_state_t* gameState,
@@ -399,6 +432,7 @@ Render(
     g_debugRenderState.dirty = false;
 }
 
+static
 void
 ReadPuzzle(
     str_t puzzleFilePath,
@@ -495,7 +529,6 @@ ReadPuzzle(
         }
 
         puzzleSegment->isSet = true;
-
         for (size_t i = 0; i < ARRAYSIZE(puzzleSegment->imgData); ++i)
         {
             nextPuzzleFileLine = get_next_split(nextPuzzleFileLine, puzzleFileBytes, '\n');
