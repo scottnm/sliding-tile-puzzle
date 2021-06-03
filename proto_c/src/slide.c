@@ -13,6 +13,8 @@
 //
 //
 
+// TODO (scottnm): undo/redo stack?
+
 #include "pch.h"
 
 #define SLEEP_PERIOD_MS 33 // 30 FPS
@@ -346,7 +348,7 @@ InitializeGame(
     srand(0); // use a deterministic seed for now
 
     // FIXME: increase once I test the win-state logic
-    static const size_t MIX_UP_STEPS = 1;
+    static const size_t MIX_UP_STEPS = 10;
     for (size_t i = 0; i < MIX_UP_STEPS; i += 1)
     {
         size_t neighborCount;
