@@ -1,3 +1,18 @@
+//
+//
+//
+// WARNING!!!!
+// This is prototype code that is not intended to be safe, robust, or rigorous
+// It's just a testing ground for me to write out a duct-tape implementation in C.
+//
+// Given that this is just a toy project to keep me occupied as a hobby, I hope any and all future readers can
+// empathize with my desire to not spin endlessly on any good engineering practices here.
+//
+// ABANDON ALL HOPE YE WHO VENTURE FURTHER
+//
+//
+//
+
 #include "pch.h"
 
 #define SLEEP_PERIOD_MS 33 // 30 FPS
