@@ -80,10 +80,17 @@ typedef struct puzzle_t
     puzzle_segment_t puzzleSegments[GRID_DIMENSION][GRID_DIMENSION];
 } puzzle_t;
 
+typedef enum GAME_OVER_STATE
+{
+    GAME_OVER_STATE_NONE = 0, // game still running
+    GAME_OVER_STATE_QUIT = 1,
+    GAME_OVER_STATE_WON  = 2,
+} GAME_OVER_STATE;
+
 typedef struct game_state_t
 {
     game_state_id_t stateId;
-    bool isRunning;
+    GAME_OVER_STATE gameOverState;
     uint8_t selectedCell[2];
     puzzle_t puzzle;
     puzzle_t puzzleSolution;
@@ -323,7 +330,7 @@ InitializeGame(
         // FIXME: how do I make this state offset thing less fragile
         // Start the GameState off at State1 so that it's different from the initial render state
         .stateId = { .value = 1 },
-        .isRunning = true,
+        .gameOverState = GAME_OVER_STATE_NONE,
         .selectedCell = {0, 0}, // always start the cursor in the top-left corner
         .puzzle = {0}, // zero-init the puzzle segments. We'll fill in below.
     };
@@ -361,7 +368,7 @@ GameRunning(
     const game_state_t* gameState)
 {
     assert(gameState != NULL);
-    return gameState->isRunning;
+    return gameState->gameOverState == GAME_OVER_STATE_NONE;
 }
 
 static
@@ -431,8 +438,7 @@ UpdateGameState(
 
     if (input.key == KEY_QUIT)
     {
-        Log("Quit key pressed! Quitting...");
-        gameState->isRunning = false;
+        gameState->gameOverState = GAME_OVER_STATE_QUIT;
         return;
     }
 
@@ -466,10 +472,22 @@ UpdateGameState(
         WRITE_DEBUG_LINE("Swapping (%zu,%zu) with (%zu,%zu)", selectedRow, selectedCol, emptyTileRow, emptyTileCol);
 
         SwapPuzzleSegments(emptyTile, selectedTile);
-
-        // The state has updated, bump the state id so that it's rendered in the next frame.
-        gameState->stateId.value += 1;
     }
+
+    // The board has updated, check to see if we've won!
+
+    // N.B. memcmp is probably not the most robust way to compare board states but it sure is simple.
+    // The usual concern about memcmp not handling padding bytes well doesn't apply since we the puzzle state and the
+    // final puzzle solution have any/all padding bytes copied around appropriately.
+    // FIXME: where we are doing raw copies look for places where we should static assert size constraints
+    bool hasWon = mem_eq(&gameState->puzzle, &gameState->puzzleSolution, sizeof(gameState->puzzle));
+    if (hasWon)
+    {
+        gameState->gameOverState = GAME_OVER_STATE_WON;
+    }
+
+    // The state has updated, bump the state id so that it's rendered in the next frame.
+    gameState->stateId.value += 1;
 }
 
 static
@@ -696,5 +714,18 @@ main(
         UpdateGameState(input, &gameState);
         Render(&gameState, &renderState);
         Sleep(SLEEP_PERIOD_MS);
+    }
+
+    switch (gameState.gameOverState)
+    {
+        case GAME_OVER_STATE_WON:
+            Log("Won!");
+            break;
+        case GAME_OVER_STATE_QUIT:
+            Log("Quitting...");
+            break;
+        default:
+            assert(false && "Invalid GameOver state!");
+            break;
     }
 }
