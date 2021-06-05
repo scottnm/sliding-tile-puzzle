@@ -22,26 +22,20 @@
 // 3X3 slide puzzle where each slide piece is 5x5 with a 1 cell buffer around each cell
 // width == (bufwidth + cell_width) * num_cells + bufwidth == (1+5)*3 + 1 == 19
 // height == width (it's square)
-#define FRAME_WIDTH 19
+#define FRAME_WIDTH  19
 #define FRAME_HEIGHT 19
 //   width # of clear cells + a newline for each row
 // + 1 for the null terminator
 #define FRAME_BUFFER_SIZE (((FRAME_WIDTH + 1) * FRAME_HEIGHT) + 1)
-#define GRID_DIMENSION 3 // 3x3 grid of tiles
-#define TILE_DIMENSION 5 // each tile is 5x5 set of cells
-#define MAX_NEIGHBORS 4 // only cardinal directions are considered
+#define GRID_DIMENSION    3 // 3x3 grid of tiles
+#define TILE_DIMENSION    5 // each tile is 5x5 set of cells
+#define MAX_NEIGHBORS     4 // only cardinal directions are considered
 
-#define CURSORUP_SEQ "\033[A"
-#define CURSORUP_SEQ_SIZE (sizeof(CURSORUP_SEQ)-1)
+#define CURSORUP_SEQ      "\033[A"
+#define CURSORUP_SEQ_SIZE (sizeof(CURSORUP_SEQ) - 1)
 
-static
-void
-set_frame_buffer(
-    char (*frameBuffer)[FRAME_BUFFER_SIZE],
-    size_t row,
-    size_t col,
-    char value
-    )
+static void
+set_frame_buffer(char (*frameBuffer)[FRAME_BUFFER_SIZE], size_t row, size_t col, char value)
 {
     (*frameBuffer)[row * (FRAME_WIDTH + 1) + col] = value;
 }
@@ -59,22 +53,16 @@ typedef struct puzzle_segment_t
     char imgData[TILE_DIMENSION][TILE_DIMENSION];
 } puzzle_segment_t;
 
-static
-void
-SwapPuzzleSegments(
-    _Inout_ puzzle_segment_t* a,
-    _Inout_ puzzle_segment_t* b
-    )
+static void
+SwapPuzzleSegments(_Inout_ puzzle_segment_t* a, _Inout_ puzzle_segment_t* b)
 {
     // a and b cannot overlap
-    assert((a <= (b - 1)) ||
-           (a >= (b + 1)) );
+    assert((a <= (b - 1)) || (a >= (b + 1)));
 
     puzzle_segment_t tmpTile;
     memcpy(&tmpTile, a, sizeof(tmpTile));
     memcpy(a, b, sizeof(*a));
     memcpy(b, &tmpTile, sizeof(*b));
-
 }
 
 typedef struct puzzle_t
@@ -86,7 +74,7 @@ typedef enum GAME_OVER_STATE
 {
     GAME_OVER_STATE_NONE = 0, // game still running
     GAME_OVER_STATE_QUIT = 1,
-    GAME_OVER_STATE_WON  = 2,
+    GAME_OVER_STATE_WON = 2,
 } GAME_OVER_STATE;
 
 typedef struct game_state_t
@@ -105,21 +93,21 @@ typedef struct game_state_t
 typedef struct debug_render_state_t
 {
     bool dirty;
-    char clearLine[DEBUG_LINE_SIZE + 1]; // +1 for the backup character
+    char clearLine[DEBUG_LINE_SIZE + 1];              // +1 for the backup character
     char backupLine[ARRAYSIZE(CURSORUP_SEQ) + 1 + 1]; // +1 for backup character, +1 for null-terminator
     char debugLine[DEBUG_LINE_SIZE];
 } debug_render_state_t;
 
 // FIXME: yikes global shared state. bugs waiting to happen.
-static debug_render_state_t g_debugRenderState = {0};
+static debug_render_state_t g_debugRenderState = { 0 };
 
-#define WRITE_DEBUG_LINE(FMT, ...) \
-    do { \
-        debug_render_state_t* rs = &g_debugRenderState; \
-        rs->dirty = true; \
-        (void)_snprintf_s( \
-            rs->debugLine, sizeof(rs->debugLine), sizeof(rs->debugLine), FMT, __VA_ARGS__); \
-    } while (0) \
+#define WRITE_DEBUG_LINE(FMT, ...)                                                                                     \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        debug_render_state_t* rs = &g_debugRenderState;                                                                \
+        rs->dirty = true;                                                                                              \
+        (void)_snprintf_s(rs->debugLine, sizeof(rs->debugLine), sizeof(rs->debugLine), FMT, __VA_ARGS__);              \
+    } while (0)
 
 typedef struct render_state_t
 {
@@ -156,29 +144,25 @@ typedef struct input_t
     key_t key;
 } input_t;
 
-#define GET_PUZZLE_HEIGHT(puzzle) ( ARRAYSIZE((puzzle)->puzzleSegments) )
-#define GET_PUZZLE_WIDTH(puzzle) ( ARRAYSIZE((puzzle)->puzzleSegments[0]) )
+#define GET_PUZZLE_HEIGHT(puzzle) (ARRAYSIZE((puzzle)->puzzleSegments))
+#define GET_PUZZLE_WIDTH(puzzle)  (ARRAYSIZE((puzzle)->puzzleSegments[0]))
 
-static
-void
-GetPuzzleSegmentPosition(
-    const puzzle_t* puzzle,
-    const puzzle_segment_t* puzzleSegment,
-    _Out_ size_t* row,
-    _Out_ size_t* col)
+static void
+GetPuzzleSegmentPosition(const puzzle_t* puzzle,
+                         const puzzle_segment_t* puzzleSegment,
+                         _Out_ size_t* row,
+                         _Out_ size_t* col)
 {
     assert(puzzleSegment >= &puzzle->puzzleSegments[0][0]);
-    assert(puzzleSegment <= &puzzle->puzzleSegments[GET_PUZZLE_HEIGHT(puzzle)-1][GET_PUZZLE_WIDTH(puzzle)-1]);
+    assert(puzzleSegment <= &puzzle->puzzleSegments[GET_PUZZLE_HEIGHT(puzzle) - 1][GET_PUZZLE_WIDTH(puzzle) - 1]);
 
     size_t index = puzzleSegment - &puzzle->puzzleSegments[0][0];
     *row = index / GET_PUZZLE_WIDTH(puzzle);
     *col = index % GET_PUZZLE_WIDTH(puzzle);
 }
 
-static
-puzzle_segment_t*
-FindEmptyTile(
-    puzzle_t* puzzle)
+static puzzle_segment_t*
+FindEmptyTile(puzzle_t* puzzle)
 {
     for (size_t tile_row = 0; tile_row < GET_PUZZLE_HEIGHT(puzzle); tile_row += 1)
     {
@@ -196,13 +180,11 @@ FindEmptyTile(
     exit(1);
 }
 
-static
-void
-GetNeighbors(
-    puzzle_t* puzzleState,
-    puzzle_segment_t* homeTile,
-    _Out_ size_t* outNeighborCount,
-    _Out_writes_(*outNeighborCount) puzzle_segment_t** outNeighbors)
+static void
+GetNeighbors(puzzle_t* puzzleState,
+             puzzle_segment_t* homeTile,
+             _Out_ size_t* outNeighborCount,
+             _Out_writes_(*outNeighborCount) puzzle_segment_t** outNeighbors)
 {
     // Cast our inputs as sized-types to work more naturally with this function
     size_t homeRow;
@@ -218,12 +200,11 @@ GetNeighbors(
         int8_t col;
     } neighbor_offset_t;
 
-    static const neighbor_offset_t neighbors[] =
-    {
-        { -1,  0 }, // top
-        {  0, -1 }, // left
-        {  0,  1 }, // right
-        {  1,  0 }, // bottom
+    static const neighbor_offset_t neighbors[] = {
+        { -1, 0 }, // top
+        { 0, -1 }, // left
+        { 0, 1 },  // right
+        { 1, 0 },  // bottom
     };
 
     static const int PUZZLE_HEIGHT = GET_PUZZLE_HEIGHT(puzzleState);
@@ -237,8 +218,7 @@ GetNeighbors(
         int offsetCol = col + neighborOffset.col;
 
         // out of bounds neighbor check
-        if (offsetRow < 0 || offsetRow >= PUZZLE_HEIGHT ||
-            offsetCol < 0 || offsetCol >= PUZZLE_WIDTH)
+        if (offsetRow < 0 || offsetRow >= PUZZLE_HEIGHT || offsetCol < 0 || offsetCol >= PUZZLE_WIDTH)
         {
             continue;
         }
@@ -250,12 +230,8 @@ GetNeighbors(
     *outNeighborCount = neighborCount;
 }
 
-static
-puzzle_segment_t*
-FindEmptyNeighbor(
-    puzzle_t* puzzleState,
-    size_t selectedRow,
-    size_t selectedCol)
+static puzzle_segment_t*
+FindEmptyNeighbor(puzzle_t* puzzleState, size_t selectedRow, size_t selectedCol)
 {
     size_t neighborCount;
     puzzle_segment_t* neighbors[MAX_NEIGHBORS];
@@ -271,13 +247,10 @@ FindEmptyNeighbor(
     return NULL;
 }
 
-static
-void
-InitializeRenderState(
-    _Out_ render_state_t* renderState
-    )
+static void
+InitializeRenderState(_Out_ render_state_t* renderState)
 {
-    renderState->lastRenderedState = (game_state_id_t){0};
+    renderState->lastRenderedState = (game_state_id_t){ 0 };
 
     static const char CLEAR_CHAR = ' ';
 
@@ -300,9 +273,7 @@ InitializeRenderState(
     renderState->clearFrame[sizeof(renderState->clearFrame) - 1] = '\0';
 
     // setup the backup frame
-    char_span_t offsetBackupFrame = {
-        .data = renderState->backupFrame,
-        .count = sizeof(renderState->backupFrame) };
+    char_span_t offsetBackupFrame = { .data = renderState->backupFrame, .count = sizeof(renderState->backupFrame) };
 
     for (size_t row = 0; row < FRAME_HEIGHT; row += 1)
     {
@@ -313,7 +284,7 @@ InitializeRenderState(
     offsetBackupFrame.data[0] = '\r';
     SPAN_ADV(offsetBackupFrame, 1);
 
-    offsetBackupFrame.data[0]= '\0';
+    offsetBackupFrame.data[0] = '\0';
     SPAN_ADV(offsetBackupFrame, 1);
     assert(offsetBackupFrame.count == 0);
 
@@ -321,20 +292,17 @@ InitializeRenderState(
     printf("%s%s", g_debugRenderState.clearLine, renderState->clearFrame);
 }
 
-static
-void
-InitializeGame(
-    const puzzle_t* puzzle,
-    _Out_ game_state_t* gameState)
+static void
+InitializeGame(const puzzle_t* puzzle, _Out_ game_state_t* gameState)
 {
     // TODO(scottnm): hardcoding a single puzzle for now
-    *gameState = (game_state_t) {
+    *gameState = (game_state_t){
         // FIXME: how do I make this state offset thing less fragile
         // Start the GameState off at State1 so that it's different from the initial render state
         .stateId = { .value = 1 },
         .gameOverState = GAME_OVER_STATE_NONE,
-        .selectedCell = {0, 0}, // always start the cursor in the top-left corner
-        .puzzle = {0}, // zero-init the puzzle segments. We'll fill in below.
+        .selectedCell = { 0, 0 }, // always start the cursor in the top-left corner
+        .puzzle = { 0 },          // zero-init the puzzle segments. We'll fill in below.
     };
 
     // Copy the input puzzle in as both the solution and the initial puzzle state
@@ -364,23 +332,20 @@ InitializeGame(
     }
 }
 
-static
-bool
-GameRunning(
-    const game_state_t* gameState)
+static bool
+GameRunning(const game_state_t* gameState)
 {
     assert(gameState != NULL);
     return gameState->gameOverState == GAME_OVER_STATE_NONE;
 }
 
-static
-input_t
+static input_t
 PollInput()
 {
     raw_key_t polled_key = get_raw_key();
     if (!polled_key.hit)
     {
-        return (input_t){0};
+        return (input_t){ 0 };
     }
 
     key_t key;
@@ -427,11 +392,8 @@ PollInput()
     return (input_t){ .has_input = true, .key = key };
 }
 
-static
-void
-UpdateGameState(
-    input_t input,
-    _Inout_ game_state_t* gameState)
+static void
+UpdateGameState(input_t input, _Inout_ game_state_t* gameState)
 {
     if (!input.has_input)
     {
@@ -492,11 +454,8 @@ UpdateGameState(
     gameState->stateId.value += 1;
 }
 
-static
-void
-Render(
-    const game_state_t* gameState,
-    _Inout_ render_state_t* renderState)
+static void
+Render(const game_state_t* gameState, _Inout_ render_state_t* renderState)
 {
     if (gameState->stateId.value == renderState->lastRenderedState.value && !g_debugRenderState.dirty)
     {
@@ -506,12 +465,12 @@ Render(
 
     // Clear last frame
     printf("%s%s%s%s%s%s",
-        renderState->backupFrame,
-        g_debugRenderState.backupLine,
-        g_debugRenderState.clearLine,
-        renderState->clearFrame,
-        renderState->backupFrame,
-        g_debugRenderState.backupLine);
+           renderState->backupFrame,
+           g_debugRenderState.backupLine,
+           g_debugRenderState.clearLine,
+           renderState->clearFrame,
+           renderState->backupFrame,
+           g_debugRenderState.backupLine);
 
     // Render the debug line
     printf("%s\n", g_debugRenderState.debugLine);
@@ -538,11 +497,10 @@ Render(
                 {
                     size_t frame_cell_row = ((TILE_DIMENSION + 1) * tile_row) + 1 + tile_cell_row;
                     size_t frame_cell_col = ((TILE_DIMENSION + 1) * tile_col) + 1 + tile_cell_col;
-                    set_frame_buffer(
-                        &renderFrame,
-                        frame_cell_row,
-                        frame_cell_col,
-                        nextPuzzleSegment->imgData[tile_cell_row][tile_cell_col]);
+                    set_frame_buffer(&renderFrame,
+                                     frame_cell_row,
+                                     frame_cell_col,
+                                     nextPuzzleSegment->imgData[tile_cell_row][tile_cell_col]);
                 }
             }
         }
@@ -553,12 +511,8 @@ Render(
     g_debugRenderState.dirty = false;
 }
 
-static
-void
-ReadPuzzle(
-    str_t puzzleFilePath,
-    _Out_ puzzle_t* outPuzzle
-    )
+static void
+ReadPuzzle(str_t puzzleFilePath, _Out_ puzzle_t* outPuzzle)
 {
     FILE* puzzleFile;
     errno_t err = fopen_s(&puzzleFile, puzzleFilePath.bytes, "rb");
@@ -577,9 +531,9 @@ ReadPuzzle(
     err = fseek(puzzleFile, 0, SEEK_SET);
     assert(err == 0);
 
-    static char puzzleFileByteBuffer[
-        (GRID_DIMENSION * GRID_DIMENSION) * // MAX_PUZZLE_FILE_SEGMENTS *
-        (ARRAYSIZE("256,256\n") - 1 + sizeof(puzzle_segment_t)) // MAX_SIZE_OF_EACH_DATA_SEGMENT
+    static char
+        puzzleFileByteBuffer[(GRID_DIMENSION * GRID_DIMENSION) *                     // MAX_PUZZLE_FILE_SEGMENTS *
+                             (ARRAYSIZE("256,256\n") - 1 + sizeof(puzzle_segment_t)) // MAX_SIZE_OF_EACH_DATA_SEGMENT
     ];
 
     if (puzzleFileByteCount > sizeof(puzzleFileByteBuffer))
@@ -587,7 +541,8 @@ ReadPuzzle(
         // FIXME: for now don't worry about proper error handling. Just force an exit here.
         // This is just a prototype.
         Log("Error parsing puzzle data! expected at most %zu bytes but found %zu bytes",
-            sizeof(puzzleFileByteBuffer), puzzleFileByteCount);
+            sizeof(puzzleFileByteBuffer),
+            puzzleFileByteCount);
         exit(1);
     }
 
@@ -598,7 +553,7 @@ ReadPuzzle(
     };
 
     char_span_t nextPuzzleFileLine = { .data = puzzleFileByteBuffer, .count = 0 };
-    puzzle_t puzzleBuffer = {0};
+    puzzle_t puzzleBuffer = { 0 };
     while (true)
     {
         nextPuzzleFileLine = get_next_split(nextPuzzleFileLine, puzzleFileBytes, '\n');
@@ -656,14 +611,16 @@ ReadPuzzle(
             if (nextPuzzleFileLine.data == NULL)
             {
                 Log("Error parsing puzzle data! each puzzle segment needs at least %zu rows but failed to find row %zu",
-                    ARRAYSIZE(puzzleSegment->imgData), i);
+                    ARRAYSIZE(puzzleSegment->imgData),
+                    i);
                 exit(1);
             }
 
             if (sizeof(puzzleSegment->imgData[i]) != nextPuzzleFileLine.count)
             {
                 Log("Error parsing puzzle data! expected %zu bytes in puzzle segment row but found %zu",
-                    sizeof(puzzleSegment->imgData[i]), nextPuzzleFileLine.count);
+                    sizeof(puzzleSegment->imgData[i]),
+                    nextPuzzleFileLine.count);
                 exit(1);
             }
 
@@ -689,7 +646,8 @@ ReadPuzzle(
     if (totalSetSegmentCount != EXPECTED_PUZZLE_SEGMENT_COUNT)
     {
         Log("Error parsing puzzle data! expected %zu complete puzzle segments but found %zu",
-            EXPECTED_PUZZLE_SEGMENT_COUNT, totalSetSegmentCount);
+            EXPECTED_PUZZLE_SEGMENT_COUNT,
+            totalSetSegmentCount);
         exit(1);
     }
 
@@ -697,17 +655,16 @@ ReadPuzzle(
 }
 
 void
-main(
-    void)
+main(void)
 {
     str_t puzzleFilePath = cstr("data/puzzle.data");
     puzzle_t puzzle;
     ReadPuzzle(puzzleFilePath, &puzzle);
 
-    render_state_t renderState = {0};
+    render_state_t renderState = { 0 };
     InitializeRenderState(&renderState);
 
-    game_state_t gameState = {0};
+    game_state_t gameState = { 0 };
     InitializeGame(&puzzle, &gameState);
 
     while (GameRunning(&gameState))

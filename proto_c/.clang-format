@@ -1,103 +1,71 @@
-# For full reference see: https://clang.llvm.org/docs/ClangFormatStyleOptions.html
 ---
 Language:        Cpp
-# BasedOnStyle:  LLVM
-
-# Make class access modifiers align with left side of the class definition
-# class Foo
-# {
-# public:
-#    ...
-# }
-AccessModifierOffset: -4
-
-# These 3 options together achieve each constructor initializer on it's own line separate from the trailing colon
-# Foo() :
-#     field1(...),
-#     field2(...),
-#     field3(...)
-# {
-# }
-AllowAllConstructorInitializersOnNextLine: false
-BreakConstructorInitializers: AfterColon
-ConstructorInitializerAllOnOneLineOrOnePerLine: true
-
+# BasedOnStyle:  Mozilla
+AccessModifierOffset: -2
 AlignAfterOpenBracket: Align
-AlignConsecutiveMacros: false
+AlignConsecutiveMacros: true
 AlignConsecutiveAssignments: false
-AlignConsecutiveBitFields: false
+AlignConsecutiveBitFields: true
 AlignConsecutiveDeclarations: false
 AlignEscapedNewlines: Right
 AlignOperands:   Align
 AlignTrailingComments: true
 AllowAllArgumentsOnNextLine: true
-AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllConstructorInitializersOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortEnumsOnASingleLine: true
 AllowShortBlocksOnASingleLine: Never
 AllowShortCaseLabelsOnASingleLine: false
-AllowShortFunctionsOnASingleLine: All
+AllowShortFunctionsOnASingleLine: Inline
 AllowShortLambdasOnASingleLine: All
 AllowShortIfStatementsOnASingleLine: Never
 AllowShortLoopsOnASingleLine: false
-AlwaysBreakAfterDefinitionReturnType: None
-AlwaysBreakAfterReturnType: All
+AlwaysBreakAfterDefinitionReturnType: TopLevel
+AlwaysBreakAfterReturnType: TopLevel
 AlwaysBreakBeforeMultilineStrings: false
-
-
-# Set to "Yes" to force all template declarations on their own line even when wrapping doesn't require it
-# template<typename T>
-# void function()
 AlwaysBreakTemplateDeclarations: Yes
-
 BinPackArguments: false
 BinPackParameters: false
-
-# IGNORE: BraceWrapping is only used when BreakBeforeBraces is set to Custom
 BraceWrapping:
-  AfterCaseLabel:  false
-  AfterClass:      false
-  AfterControlStatement: Never
-  AfterEnum:       false
-  AfterFunction:   false
-  AfterNamespace:  false
+  AfterCaseLabel:  true
+  AfterClass:      true
+  AfterControlStatement: Always
+  AfterEnum:       true
+  AfterFunction:   true
+  AfterNamespace:  true
   AfterObjCDeclaration: false
-  AfterStruct:     false
-  AfterUnion:      false
-  AfterExternBlock: false
-  BeforeCatch:     false
-  BeforeElse:      false
-  BeforeLambdaBody: false
-  BeforeWhile:     false
-  IndentBraces:    false
+  AfterStruct:     true
+  AfterUnion:      true
+  AfterExternBlock: true
+  BeforeCatch:     true
+  BeforeElse:      true
+  BeforeLambdaBody: true
+  BeforeWhile:     true
+  IndentBraces:    true
   SplitEmptyFunction: true
   SplitEmptyRecord: true
   SplitEmptyNamespace: true
-
 BreakBeforeBinaryOperators: None
-
-# Allman style braces means "each brace on it's own line"
-# void function()
-# {
-# }
 BreakBeforeBraces: Allman
-
 BreakBeforeInheritanceComma: false
-BreakInheritanceList: BeforeColon
+BreakInheritanceList: BeforeComma
 BreakBeforeTernaryOperators: true
 BreakConstructorInitializersBeforeComma: false
+BreakConstructorInitializers: BeforeComma
 BreakAfterJavaFieldAnnotations: false
 BreakStringLiterals: true
 ColumnLimit:     120
 CommentPragmas:  '^ IWYU pragma:'
 CompactNamespaces: false
+ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 4
 ContinuationIndentWidth: 4
-Cpp11BracedListStyle: true
+Cpp11BracedListStyle: false
 DeriveLineEnding: true
 DerivePointerAlignment: false
 DisableFormat:   false
 ExperimentalAutoDetectBinPacking: false
-FixNamespaceComments: true
+FixNamespaceComments: false
 ForEachMacros:
   - foreach
   - Q_FOREACH
@@ -115,18 +83,12 @@ IncludeCategories:
     SortPriority:    0
 IncludeIsMainRegex: '(Test)?$'
 IncludeIsMainSourceRegex: ''
-IndentCaseLabels: false
-IndentCaseBlocks: false
+IndentCaseLabels: true
+IndentCaseBlocks: true
 IndentGotoLabels: true
 IndentPPDirectives: None
 IndentExternBlock: AfterExternBlock
-
-# Use 4 spaces for each indent level. For some reason all of the base style prefer 2.
-# void function()
-# {
-#     // indented
 IndentWidth:     4
-
 IndentWrappedFunctionNames: false
 InsertTrailingCommas: None
 JavaScriptQuotes: Leave
@@ -137,10 +99,10 @@ MacroBlockEnd:   ''
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 ObjCBinPackProtocolList: Auto
-ObjCBlockIndentWidth: 2
+ObjCBlockIndentWidth: 4
 ObjCBreakBeforeNestedBlockParam: true
-ObjCSpaceAfterProperty: false
-ObjCSpaceBeforeProtocolList: true
+ObjCSpaceAfterProperty: true
+ObjCSpaceBeforeProtocolList: false
 PenaltyBreakAssignment: 2
 PenaltyBreakBeforeFirstCallParameter: 19
 PenaltyBreakComment: 300
@@ -148,17 +110,14 @@ PenaltyBreakFirstLessLess: 120
 PenaltyBreakString: 1000
 PenaltyBreakTemplateDeclaration: 10
 PenaltyExcessCharacter: 1000000
-PenaltyReturnTypeOnItsOwnLine: 60
-
-# Align pointers so they attach to their type and not their name
+PenaltyReturnTypeOnItsOwnLine: 200
 PointerAlignment: Left
-
 ReflowComments:  true
 SortIncludes:    true
 SortUsingDeclarations: true
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
-SpaceAfterTemplateKeyword: true
+SpaceAfterTemplateKeyword: false
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeCpp11BracedList: false
 SpaceBeforeCtorInitializerColon: true

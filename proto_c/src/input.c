@@ -8,7 +8,7 @@ get_raw_key()
 {
     if (!_kbhit())
     {
-        return (raw_key_t){0};
+        return (raw_key_t){ 0 };
     }
 
     const int firstPoll = _getch();
@@ -16,5 +16,5 @@ get_raw_key()
 
     int keyCode = isSpecialKey ? _getch() : firstPoll;
     assert(keyCode != 0);
-    return (raw_key_t) { .hit = true, .keyCode = keyCode };
+    return (raw_key_t){ .hit = true, .keyCode = keyCode };
 }
