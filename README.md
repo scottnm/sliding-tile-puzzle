@@ -18,7 +18,7 @@ scratch.
 
 ### Controls
 
-Use your numpad (or your regular number keys to move slide the tile in the corresponding cell.
+Use your numpad (or your regular number keys) to move slide the tile in the corresponding cell.
 ```
 | | | |
 |-|-|-|
@@ -26,3 +26,7 @@ Use your numpad (or your regular number keys to move slide the tile in the corre
 |4|5|6|
 |7|8|9|
 ```
+
+### Demo
+
+![demo of the sliding puzzle game being played](demo/proto_c_demo_cropped.gif)
